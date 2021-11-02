@@ -1,7 +1,7 @@
 # Folders
 
-../.DS_Store
-../.idea/
+.DS_Store
+.idea/
 draw/
 meters_csv/
 meters_xlsx/

@@ -1,25 +1,29 @@
 import os
+import sys
 import json
+import csv
+import argparse
+from typing import Any, Union
 import xml.etree.ElementTree as ET
 import math
 import matplotlib.pyplot as plt
 import numpy as np
-from utils.compute_overlap import compute_overlap
+from efficientdet.utils.compute_overlap import compute_overlap
 from termcolor import colored
 
 
 # SUBFOLDER_FOR_YOLO = 'results_yolov4'
 SUBFOLDER_FOR_YOLO = 'results_8684'
 
-PATH_TO_FOLDER_WITH_XML = '/Users/nikita/PycharmProjects/efficientdet/efficientdet/efficientdet/00_dataset/meters01/Annotations/'
+PATH_TO_FOLDER_WITH_XML = '/Users/nikita/Desktop/zip_meters/crop_dataset/00_dataset/meters01/Annotations/'
 
 PATH_TO_FOLDER_WITH_JSON = '/Users/nikita/Desktop/full_dataset/meters01/Annotations/'
-# PATH_TO_LIST_OF_IMAGES_JSON = '/Users/nikita/Desktop/full_dataset/meters01/ImageSets/Main/test.txt'
-PATH_TO_LIST_OF_IMAGES_JSON = '00_dataset/meters01/ImageSets/Main/test.txt'
+PATH_TO_LIST_OF_IMAGES_JSON = '/Users/nikita/Desktop/full_dataset/meters01/ImageSets/Main/test.txt'
+# PATH_TO_LIST_OF_IMAGES_JSON = '00_dataset/meters01/ImageSets/Main/test.txt'
 
 PATH_TO_FOLDER_WITH_TXT = '/Users/nikita/Desktop/detections/ed4/05/'
-PATH_TO_LIST_OF_IMAGES = '00_dataset/meters01/ImageSets/Main/test.txt'
-PATH_TO_JSON_WITH_RESULTS_OF_DETECTIONS = '/Users/nikita/Desktop/test_ssd/meters_data/test_ssd512_sgdc.json'
+PATH_TO_LIST_OF_IMAGES = '/Users/nikita/Desktop/zip_meters/crop_dataset/00_dataset/meters01/ImageSets/Main/test.txt'
+PATH_TO_JSON_WITH_RESULTS_OF_DETECTIONS = '/Users/nikita/Desktop/zip_meters/test_ssd/meters_data/test_ssd512_sgdc.json'
 PATH_WITH_DATA_FOR_DRAW_CURVE = '/Users/nikita/PycharmProjects/efficientdet/efficientdet/efficientdet/test_ssd_write.json'
 # PATH_TO_FOLDER_WITH_RESULTS_FOR_YOLO = '/Users/nikita/Desktop/results_yolov4/results_tiny3l_meters_extra'
 PATH_TO_FOLDER_WITH_RESULTS_FOR_YOLO = '/Users/nikita/Desktop/results_8684/results_yolov4-tiny-fake_8684'
@@ -28,27 +32,16 @@ PATH_TO_FOLDER_WITH_RESULTS_FOR_YOLO = '/Users/nikita/Desktop/results_8684/resul
 class_name = ['meter', 'value', 'seal', 'mag', 'seal2', 'model', 'serial', 'breaker']
 label_number = {'meter': 0, 'value': 1, 'seal': 2, 'mag': 3, 'seal2': 4, 'model': 5, 'serial': 6, 'breaker': 7}
 
-NAME_PLOT = PATH_TO_FOLDER_WITH_RESULTS_FOR_YOLO.split('/')[-1] # yolo
-# NAME_PLOT = PATH_TO_JSON_WITH_RESULTS_OF_DETECTIONS.split('/')[-1][:-5] # ssd
+# NAME_PLOT = PATH_TO_FOLDER_WITH_RESULTS_FOR_YOLO.split('/')[-1] # yolo
+NAME_PLOT = PATH_TO_JSON_WITH_RESULTS_OF_DETECTIONS.split('/')[-1][:-5] # ssd
 # NAME_PLOT = PATH_TO_FOLDER_WITH_TXT.split('/')[-3]# efficientdet
 
 
-def main():
-    # list_of_files = []
-    # with open(PATH_TO_LIST_OF_IMAGES, 'r') as file:
-    #     for line in file:
-    #         list_of_files.append(line.strip())
-    # file.close()
+def main() -> None:
+    """Main function"""
+    list_of_files = get_list_of_images(PATH_TO_LIST_OF_IMAGES)
 
-    list_of_files = []
-    with open(PATH_TO_LIST_OF_IMAGES_JSON, 'r') as file:
-        for line in file:
-            list_of_files.append(line.strip())
-    file.close()
-
-    # list_of_files = sorted(list_of_files)
-
-    model = 'yolo' # 'efficientdet', 'ssd', 'yolo'
+    model = 'ssd' # 'efficientdet', 'ssd', 'yolo'
 
     if model == 'efficientdet':
         prepare_data_for_test_efficientdet(list_of_files)
@@ -57,11 +50,26 @@ def main():
     if model == 'yolo':
         prepare_data_for_test_yolo(list_of_files, PATH_TO_FOLDER_WITH_RESULTS_FOR_YOLO)
 
-    get_metrics_and_figure(NAME_PLOT, show_fig=True, save_fig=True, write_to_csv_file=False, write_to_terminal=False)
+    get_metrics_and_figure(NAME_PLOT, show_fig=False, save_fig=False,
+                           write_to_csv_file=False, write_to_terminal=True, write_to_xlsx_file=False)
+
+
+def get_list_of_images(path_to_file: str) -> list:
+    """Get list of named images from txt file"""
+    if not path_to_file.split('/')[-1].endswith('.txt'):
+        raise Exception("Wrong file extension")
+    else:
+        list_of_files = []
+        with open(path_to_file, 'r') as file:
+            for line in file:
+                list_of_files.append(line.strip())
+        file.close()
+
+        return sorted(list_of_files)
 
 
 def get_data_for_metrics(det_arr: list, ann_arr: list) -> None:
-    """calculation of F1, R, P, score metrics, recording data about them in the .json file"""
+    """Calculation of F1, R, P, score metrics, recording data about them in the .json file"""
     all_detections = det_arr
     all_annotations = ann_arr
 
@@ -143,7 +151,7 @@ def get_data_for_metrics(det_arr: list, ann_arr: list) -> None:
 
 
 def compute_ap(recall: list, precision: list):
-    """compute the average precision, given the recall and precision curves"""
+    """Compute the average precision, given the recall and precision curves"""
     mrec = np.concatenate(([0.], recall, [1.]))
     mpre = np.concatenate(([0.], precision, [0.]))
 
@@ -157,7 +165,7 @@ def compute_ap(recall: list, precision: list):
 
 
 def prepare_data_for_test_ssd(list_of_files: list) -> None:
-    """preparation of data from testing SSD"""
+    """Preparation of data from testing SSD"""
     ann_arr = []
     for file in list_of_files[:]:
         ann_file = get_annotation_xml(PATH_TO_FOLDER_WITH_XML + file + '.xml')
@@ -175,7 +183,7 @@ def prepare_data_for_test_ssd(list_of_files: list) -> None:
 
 
 def prepare_data_for_test_yolo(list_of_files: list, path_to_folder_with_results_for_yolo: str, set_yolo='origin') -> None:
-    """preparation of data from testing YOLO"""
+    """Preparation of data from testing YOLO"""
     ann_arr = []
     for file in list_of_files[:]:
         ann_file = get_annotation_xml(PATH_TO_FOLDER_WITH_XML + file + '.xml')
@@ -233,7 +241,7 @@ def prepare_data_for_test_yolo(list_of_files: list, path_to_folder_with_results_
 
 
 def prepare_data_for_test_efficientdet(list_of_files: list) -> None:
-    """preparation of data from testing EfficientDet"""
+    """Preparation of data from testing EfficientDet"""
     ann_arr = []
     det_arr = []
 
@@ -258,8 +266,9 @@ def prepare_data_for_test_efficientdet(list_of_files: list) -> None:
     get_data_for_metrics(det_arr, ann_arr)
 
 
-def get_metrics_and_figure(name_plot: str, save_fig=False, show_fig=False, write_to_terminal=False, write_to_csv_file=False) -> None:
-    """draw curves of dependence of Precision(Recall) and F1(Threshold), obtaining Precision, Recall, F1"""
+def get_metrics_and_figure(name_plot: str, save_fig=False, show_fig=False, write_to_terminal=False,
+                           write_to_csv_file=False, write_to_xlsx_file=False) -> None:
+    """Draw curves of dependence of Precision(Recall), F1(Threshold), TP(FP) (ROC) obtaining Precision, Recall, F1, TP, FP"""
     with open(PATH_WITH_DATA_FOR_DRAW_CURVE, 'r') as f:
         data = json.loads(f.read())
 
@@ -272,11 +281,11 @@ def get_metrics_and_figure(name_plot: str, save_fig=False, show_fig=False, write
     if not os.path.exists('./draw'):
         os.mkdir('./draw')
 
-    # class_name_1 = ['meter', 'value', 'seal', 'mag', 'seal2', 'model', 'serial', 'breaker']
-    # colors = ['purple', 'sienna', 'green', 'orange', 'gray', 'r', 'violet', 'blue']
-
-    class_name_1 = ['mag', 'model', 'meter', 'value', 'seal2', 'seal', 'serial', 'breaker']
+    class_name_1 = ['meter', 'value', 'seal', 'mag', 'seal2', 'model', 'serial', 'breaker']
     colors = ['purple', 'sienna', 'green', 'orange', 'gray', 'r', 'violet', 'blue']
+
+    # class_name_1 = ['mag', 'model', 'meter', 'value', 'seal2', 'seal', 'serial', 'breaker']
+    # colors = ['purple', 'sienna', 'green', 'orange', 'gray', 'r', 'violet', 'blue']
 
     for p, r, class_, label, col in zip(precision, recall, class_name, class_name_1, colors):
         plt.plot(r, p, label=label, color=col)
@@ -327,12 +336,15 @@ def get_metrics_and_figure(name_plot: str, save_fig=False, show_fig=False, write
         print(table)
         print(f"{colored('mAP:', 'red', attrs=['bold'])} {truncate(sum(ap)/len(ap), 4)}")
 
+    if write_to_xlsx_file:
+        write_meters_and_image_to_xlsx(class_name, precisions_list, recall_list, f1_list, ap_list)
+
     if write_to_csv_file:
-        write_meters_to_csv(class_name, precisions_list, recall_list, f1_list, ap_list)
+        write_meters_to_csv(class_name, precisions_list, recall_list, f1_list, ap_list, truncate(sum(ap)/len(ap), 4))
 
 
 def sort_detections_for_ssd_yolo(det: list, list_of_files: list, class_name: list) -> list:
-    """assembly of detection data in the form required to obtain metrics"""
+    """Assembly of detection data in the form required to obtain metrics"""
     temp = []
     for image in list_of_files:
         class_arr = [[] for _ in range(len(class_name))]
@@ -345,7 +357,7 @@ def sort_detections_for_ssd_yolo(det: list, list_of_files: list, class_name: lis
 
 
 def pasre_json_ssd(path_to_json_file: str) -> list:
-    """collecting detection data from a json file into a list"""
+    """Collecting detection data from a json file into a list"""
     with open(path_to_json_file, 'r') as f:
         data = json.loads(f.read())
     data1 = data['data']
@@ -362,7 +374,7 @@ def pasre_json_ssd(path_to_json_file: str) -> list:
 
 
 def get_detection_txt(path_to_txt: str) -> list:
-    """get data from txt file"""
+    """Get detection data from txt file"""
     data_from_txt = []
     with open(path_to_txt, 'r') as f:
         for line in f:
@@ -376,7 +388,7 @@ def get_detection_txt(path_to_txt: str) -> list:
 
 
 def get_annotation_xml(path_to_xml: str) -> list:
-    """get data from xml file """
+    """Get annotation data from xml file"""
     root = ET.parse(path_to_xml).getroot()
     data_from_xml = []
     filename = root.find('filename').text[:-4]
@@ -392,12 +404,13 @@ def get_annotation_xml(path_to_xml: str) -> list:
 
 
 def truncate(number: float, digits: int) -> float:
-    """truncating a number to n decimal places"""
+    """Truncating a number to n decimal places"""
     stepper = 10.0 ** digits
     return math.trunc(stepper * number) / stepper
 
 
 def get_annotation_json(path_to_json: str) -> list:
+    """Get annotation data from xml file"""
     data_from_json = []
     with open(path_to_json, 'r') as file:
         data = json.load(file)
@@ -415,7 +428,8 @@ def get_annotation_json(path_to_json: str) -> list:
     return data_from_json
 
 
-def get_unique_numbers(numbers):
+def get_unique_numbers(numbers: list) -> list:
+    """Get a list with unique values"""
     list_of_unique_numbers = []
     unique_numbers = set(numbers)
 
@@ -425,18 +439,81 @@ def get_unique_numbers(numbers):
     return list_of_unique_numbers
 
 
-def write_meters_to_csv(*args):
+def parse_arg(args: Any) -> Union:
+    """Parse arguments from terminal"""
+    parser = argparse.ArgumentParser(description='Getting metrics, graphs')
+    parser.add_argument('--path_to_ann', help='Path to files with annotations', type=str,
+                        default='/User/nikita/zip_meters/crop_dataset/00_dataset/meters01/Annotations/')
+    parser.add_argument('--path_to_det', help='Path to files with detections', type=str,
+                        default='/User/nikita/zip_meters/test_ssd/meters_data/test_ssd300_ac.json')
+    parser.add_argument('--path_to_list_file', help='Path to files with list of images', type=str,
+                        default='/User/nikita/zip_meters/crop_dataset/00_dataset/meters01/ImageSets/Main/test.txt')
+    parser.add_argument('--model', help='Model name, for example, ssd, yolo, efficientdet', type=str,
+                        default='ssd')
+    parser.add_argument('--showfig', help='Show plot', type=bool, default=False)
+    parser.add_argument('--savefig', help='Save plot as jpg file', type=bool, default=False)
+    parser.add_argument('--wcsv', help='Write result to cvs file', type=bool, default=False)
+    parser.add_argument('--wt', help='Write result to terminal', type=bool, default=False)
+    # args = sys.argv[1:]
+    # args = parser_arg(args)
+
+    # if args.path_to_ann:
+    #     path = args.path_to_ann
+    # else:
+    #     raise Exception('The path is not specified or is not specified correctly')
+    #
+    # if args.path_to_det:
+    #     path = args.path_to_det
+    # else:
+    #     raise Exception('The path is not specified or is not specified correctly')
+    #
+    # if args.path_to_list_file:
+    #     path = args.path_to_list_file
+    # else:
+    #     raise Exception('The path is not specified or is not specified correctly')
+    # if args.model:
+    #     model = args.model
+    # else:
+    #     raise Exception('Model name is missing or incorrect')
+
+    return parser.parse_args(args)
+
+
+def write_meters_to_csv(*args: Any) -> None:
+    """Write meters for each classes in cvs file"""
     import pandas as pd
     frame = pd.DataFrame({'Meters': args[0],
                           "precision": args[1],
                           "recall": args[2],
                           "f1": args[3],
-                          "ap": args[4]})
+                          "ap": args[4],
+                          "map": args[5]})
 
     if not os.path.exists('./meters_csv'):
         os.mkdir('./meters_csv')
 
     frame.to_csv(f"meters_csv/{NAME_PLOT}.csv", sep=';', index=False, index_label=True)
+
+
+def write_meters_and_image_to_xlsx(*args: Any) -> None:
+    """Write meters for each classes in xlsx file"""
+    import pandas as pd
+    frame = pd.DataFrame({'Meters': args[0],
+                          "Precision": args[1],
+                          "Recall": args[2],
+                          "F1": args[3],
+                          "AP": args[4]})
+
+    if not os.path.exists('./meters_xlsx'):
+        os.mkdir('./meters_xlsx')
+
+    writer = pd.ExcelWriter(f"meters_xlsx/{NAME_PLOT}.xlsx", engine='xlsxwriter')
+    frame.to_excel(writer, sheet_name='Sheet1', index=False)
+    workbook = writer.book
+    worksheet = writer.sheets['Sheet1']
+    worksheet.insert_image('G1', f'draw/{NAME_PLOT}_RP.jpg')
+    worksheet.insert_image('Q1', f'draw/{NAME_PLOT}_F1.jpg')
+    writer.save()
 
 
 if __name__ == '__main__':
