@@ -1,0 +1,15 @@
+# Folders
+
+../.DS_Store
+../.idea/
+draw/
+meters_csv/
+meters_xlsx/
+
+# Files
+
+test_ssd_write.json
+classes.json
+test2.json
+test4.json
+classes.names
