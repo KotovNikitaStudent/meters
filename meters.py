@@ -51,7 +51,7 @@ def main() -> None:
         prepare_data_for_test_yolo(list_of_files, PATH_TO_FOLDER_WITH_RESULTS_FOR_YOLO)
 
     get_metrics_and_figure(NAME_PLOT, show_fig=False, save_fig=False,
-                           write_to_csv_file=False, write_to_terminal=True, write_to_xlsx_file=False)
+                           write_to_csv_file=False, write_to_terminal=False, write_to_xlsx_file=False)
 
 
 def get_list_of_images(path_to_file: str) -> list:
